@@ -1,4 +1,3 @@
-
 // Netlify serverless function — fetches RYAN price data from Yahoo Finance server-side
 export async function handler(event) {
   const headers = {
@@ -63,4 +62,3 @@ export async function handler(event) {
     };
   }
 }
-
