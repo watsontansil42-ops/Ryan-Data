@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RYAN Specialty — Valuation Dashboard</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<style>
+  :root {
+    --bg: #080d13;
+    --card: #0e1620;
+    --card-border: #182536;
+    --surface: #111b28;
+    --text: #b8c8db;
+    --text-dim: #56687d;
+    --bold: #e4edf6;
+    --accent: #3b9eff;
+    --accent-dim: rgba(59,158,255,0.12);
+    --accent-border: rgba(59,158,255,0.3);
+    --green: #22c55e;
+    --green-dim: rgba(34,197,94,0.12);
+    --red: #ef4444;
+    --red-dim: rgba(239,68,68,0.12);
+    --amber: #f59e0b;
+    --input-bg: #0a1018;
+    --mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+    --sans: 'IBM Plex Sans', -apple-system, sans-serif;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { font-size: 14px; }
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    line-height: 1.5;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 24px 20px 40px; }
+
+  /* Header */
+  .header {
+    display: flex; justify-content: space-between; align-items: flex-end;
+    border-bottom: 1px solid var(--card-border); padding-bottom: 18px;
+    margin-bottom: 20px; flex-wrap: wrap; gap: 12px;
+  }
+  .ticker { font-family: var(--mono); font-size: 2rem; font-weight: 700; color: var(--bold); letter-spacing: 3px; line-height: 1; }
+  .co-name { font-size: 0.82rem; color: var(--text-dim); margin-top: 3px; }
+  .price-box { text-align: right; }
+  .price-tag { font-family: var(--mono); font-size: 0.65rem; color: var(--text-dim); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 2px; }
+  .price-val { font-family: var(--mono); font-size: 2.2rem; font-weight: 700; color: var(--green); line-height: 1.1; }
+  .price-val.stale { color: var(--amber); }
+  .price-change { font-family: var(--mono); font-size: 0.78rem; margin-top: 2px; }
+  .price-change.up { color: var(--green); }
+  .price-change.down { color: var(--red); }
+  .price-ts { font-size: 0.68rem; color: var(--text-dim); margin-top: 1px; font-family: var(--mono); }
+
+  /* Controls */
+  .controls { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; }
+  .toggle-group { display: flex; background: var(--input-bg); border: 1px solid var(--card-border); border-radius: 6px; overflow: hidden; }
+  .toggle-btn { background: none; border: none; color: var(--text-dim); font-family: var(--mono); font-size: 0.75rem; padding: 6px 14px; cursor: pointer; transition: all 0.15s; }
+  .toggle-btn.active { background: var(--accent-dim); color: var(--accent); }
+  .manual-wrap { display: flex; align-items: center; background: var(--input-bg); border: 1px solid var(--card-border); border-radius: 6px; padding: 0 10px; }
+  .manual-wrap span { color: var(--text-dim); font-family: var(--mono); font-size: 0.85rem; }
+  .manual-wrap input { background: none; border: none; color: var(--bold); font-family: var(--mono); font-size: 0.85rem; padding: 6px 4px; width: 90px; outline: none; }
+  .btn-sm { background: none; border: 1px solid var(--card-border); color: var(--text-dim); font-family: var(--mono); font-size: 0.72rem; padding: 5px 12px; border-radius: 5px; cursor: pointer; transition: all 0.15s; }
+  .btn-sm:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-accent { background: var(--accent); border: none; color: #fff; font-family: var(--mono); font-size: 0.75rem; font-weight: 600; padding: 6px 14px; border-radius: 5px; cursor: pointer; }
+  .warning { font-size: 0.75rem; color: var(--amber); font-style: italic; }
+  .status-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; position: relative; top: -1px; }
+  .status-dot.live { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .status-dot.off { background: var(--text-dim); }
+
+  /* Period Tabs */
+  .period-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 8px; }
+  .tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+  .tab { background: var(--input-bg); border: 1px solid var(--card-border); color: var(--text-dim); font-family: var(--mono); font-size: 0.72rem; padding: 5px 12px; border-radius: 4px; cursor: pointer; transition: all 0.15s; }
+  .tab.active { background: var(--accent-dim); color: var(--accent); border-color: var(--accent-border); }
+  .tab-add { border-style: dashed; }
+
+  /* Card */
+  .card { background: var(--card); border: 1px solid var(--card-border); border-radius: 10px; overflow: hidden; margin-bottom: 18px; }
+  .card-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; border-bottom: 1px solid var(--card-border); flex-wrap: wrap; gap: 8px; }
+  .card-title { font-weight: 600; color: var(--bold); font-size: 0.95rem; }
+  .card-period { color: var(--accent); font-family: var(--mono); font-size: 0.8rem; }
+  .card-actions { display: flex; gap: 6px; }
+  .btn-edit { background: var(--accent-dim); border: none; color: var(--accent); font-family: var(--mono); font-size: 0.72rem; padding: 4px 10px; border-radius: 4px; cursor: pointer; }
+  .btn-del { background: var(--red-dim); border: none; color: var(--red); font-family: var(--mono); font-size: 0.72rem; padding: 4px 10px; border-radius: 4px; cursor: pointer; }
+
+  /* Table */
+  table { width: 100%; border-collapse: collapse; }
+  .row td { padding: 7px 20px; font-family: var(--mono); font-size: 0.82rem; border-bottom: 1px solid rgba(24,37,54,0.5); }
+  .row td:last-child { text-align: right; }
+  .row.indent td:first-child { padding-left: 40px; }
+  .row.bold td { font-weight: 700; color: var(--bold); }
+  .row.accent td { color: var(--accent); font-weight: 700; }
+  .row.large td { font-size: 1rem; }
+  .row.spacer td { height: 10px; border: none; }
+  .row input[type="number"] { background: var(--input-bg); border: 1px solid var(--accent-border); color: var(--bold); font-family: var(--mono); font-size: 0.82rem; padding: 3px 6px; border-radius: 4px; width: 100px; text-align: right; outline: none; }
+
+  /* Multiples */
+  .multiples { display: flex; border-top: 2px dashed var(--card-border); }
+  .mult-card { flex: 1; padding: 18px 20px; text-align: center; }
+  .mult-card + .mult-card { border-left: 1px solid var(--card-border); }
+  .mult-label { font-size: 0.68rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; font-family: var(--mono); margin-bottom: 6px; }
+  .mult-val { font-family: var(--mono); font-size: 1.8rem; font-weight: 700; color: var(--accent); }
+  .mult-formula { font-size: 0.65rem; color: var(--text-dim); font-family: var(--mono); margin-top: 3px; }
+
+  /* Comparison */
+  .comp-scroll { overflow-x: auto; }
+  .comp-table { width: 100%; border-collapse: collapse; }
+  .comp-table th { padding: 8px 16px; text-align: right; color: var(--accent); font-family: var(--mono); font-size: 0.72rem; font-weight: 600; border-bottom: 1px solid var(--card-border); }
+  .comp-table th:first-child { text-align: left; }
+  .comp-table td { padding: 6px 16px; font-family: var(--mono); font-size: 0.78rem; text-align: right; border-bottom: 1px solid rgba(24,37,54,0.3); }
+  .comp-table td:first-child { text-align: left; color: var(--text-dim); white-space: nowrap; }
+
+  /* Add Form */
+  .form-card { background: var(--card); border: 1px solid var(--accent-border); border-radius: 10px; padding: 20px; margin-bottom: 18px; }
+  .form-title { font-weight: 600; color: var(--bold); font-size: 0.95rem; margin-bottom: 14px; }
+  .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .form-field label { display: block; font-family: var(--mono); font-size: 0.65rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 3px; }
+  .form-field input { width: 100%; background: var(--input-bg); border: 1px solid var(--card-border); color: var(--bold); font-family: var(--mono); font-size: 0.82rem; padding: 7px 10px; border-radius: 5px; outline: none; }
+  .form-field input:focus { border-color: var(--accent-border); }
+  .form-actions { display: flex; gap: 8px; }
+  .btn-cancel { background: none; border: 1px solid var(--card-border); color: var(--text-dim); font-family: var(--mono); font-size: 0.75rem; padding: 6px 14px; border-radius: 5px; cursor: pointer; }
+
+  /* Share Bar */
+  .share-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 18px; padding: 10px 16px; background: var(--surface); border: 1px solid var(--card-border); border-radius: 8px; flex-wrap: wrap; }
+  .share-bar .label { font-family: var(--mono); font-size: 0.72rem; color: var(--text-dim); white-space: nowrap; }
+  .share-url { flex: 1; min-width: 200px; background: var(--input-bg); border: 1px solid var(--card-border); color: var(--text); font-family: var(--mono); font-size: 0.72rem; padding: 6px 10px; border-radius: 4px; outline: none; cursor: text; }
+  .copied-toast { font-family: var(--mono); font-size: 0.72rem; color: var(--green); opacity: 0; transition: opacity 0.3s; }
+  .copied-toast.show { opacity: 1; }
+
+  /* Chart */
+  .chart-filters { display: flex; gap: 4px; flex-wrap: wrap; }
+  .chart-filter-btn {
+    background: var(--input-bg); border: 1px solid var(--card-border); color: var(--text-dim);
+    font-family: var(--mono); font-size: 0.7rem; padding: 4px 10px; border-radius: 4px;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .chart-filter-btn.active { background: var(--accent-dim); color: var(--accent); border-color: var(--accent-border); }
+  .chart-filter-btn:hover { border-color: var(--accent-border); color: var(--text); }
+  .chart-wrap { padding: 16px 20px 20px; }
+  .chart-container { position: relative; height: 300px; }
+  .chart-loading { display: flex; align-items: center; justify-content: center; height: 300px; color: var(--text-dim); font-family: var(--mono); font-size: 0.8rem; }
+  .chart-stats { display: flex; gap: 20px; padding: 12px 20px; border-top: 1px solid var(--card-border); font-family: var(--mono); font-size: 0.72rem; flex-wrap: wrap; }
+  .chart-stat-label { color: var(--text-dim); margin-right: 4px; }
+  .chart-stat-val { color: var(--bold); font-weight: 600; }
+  .chart-stat-val.up { color: var(--green); }
+  .chart-stat-val.down { color: var(--red); }
+
+  .footer { text-align: center; color: var(--text-dim); font-family: var(--mono); font-size: 0.65rem; padding: 16px 0; letter-spacing: 0.5px; }
+
+  @media (max-width: 600px) {
+    .wrap { padding: 16px 12px 32px; }
+    .ticker { font-size: 1.5rem; }
+    .price-val { font-size: 1.6rem; }
+    .mult-val { font-size: 1.3rem; }
+    .multiples { flex-direction: column; }
+    .mult-card + .mult-card { border-left: none; border-top: 1px solid var(--card-border); }
+    .chart-container { height: 220px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+
+<script>
+// ── State ──
+let STATE = {
+  periods: [
+    {
+      id: "ltm-dec25",
+      label: "LTM Dec-25",
+      ebitda: 803.1,
+      changeContingent: 13.1,
+      totalAdjustments: 150.5,
+      creditAdjustments: 35.5,
+      sharesOutstanding: 264,
+      cash: 158,
+      totalDebt: 3352,
+    }
+  ],
+  activePeriodIdx: 0,
+  manualPrice: null,
+  useManualPrice: false,
+};
+
+let livePrice = null;
+let prevClose = null;
+let priceLoading = true;
+let priceError = false;
+let lastFetch = null;
+let editing = false;
+let showAddForm = false;
+let copiedShow = false;
+
+// Chart state
+let priceChart = null;
+let chartRange = "1y";
+let chartLoading = false;
+let chartData = [];
+
+const CHART_RANGES = [
+  { key: "1w", label: "1W", range: "5d", interval: "15m" },
+  { key: "1m", label: "1M", range: "1mo", interval: "1d" },
+  { key: "3m", label: "3M", range: "3mo", interval: "1d" },
+  { key: "ytd", label: "YTD", range: "ytd", interval: "1d" },
+  { key: "1y", label: "1Y", range: "1y", interval: "1d" },
+  { key: "5y", label: "5Y", range: "5y", interval: "1wk" },
+  { key: "ipo", label: "Since IPO", range: "max", interval: "1wk" },
+];
+
+// ── Helpers ──
+const fmt = (n, d=1) => n == null || isNaN(n) ? "—" : n.toLocaleString("en-US", {minimumFractionDigits:d, maximumFractionDigits:d});
+const fmtM = n => "$" + fmt(n);
+const fmtX = n => fmt(n,1) + "x";
+
+function calcDerived(p, price) {
+  const ebitdac = (p.ebitda||0) + (p.changeContingent||0);
+  const adjEbitdac = ebitdac + (p.totalAdjustments||0);
+  const pfAdjEbitdac = adjEbitdac + (p.creditAdjustments||0);
+  const equityValue = (p.sharesOutstanding||0) * (price||0);
+  const netDebt = (p.totalDebt||0) - (p.cash||0);
+  const ev = equityValue + netDebt;
+  const adjMultiple = adjEbitdac > 0 ? ev / adjEbitdac : null;
+  const creditMultiple = pfAdjEbitdac > 0 ? ev / pfAdjEbitdac : null;
+  return { ebitdac, adjEbitdac, pfAdjEbitdac, equityValue, netDebt, ev, adjMultiple, creditMultiple };
+}
+
+// ── URL Hash State ──
+function encodeState() {
+  try { return btoa(unescape(encodeURIComponent(JSON.stringify({ p: STATE.periods, mp: STATE.manualPrice, um: STATE.useManualPrice })))); }
+  catch { return ""; }
+}
+function decodeState(hash) {
+  try {
+    const json = decodeURIComponent(escape(atob(hash)));
+    const d = JSON.parse(json);
+    if (d.p && Array.isArray(d.p)) { STATE.periods = d.p; STATE.manualPrice = d.mp || null; STATE.useManualPrice = !!d.um; }
+  } catch {}
+}
+function pushState() {
+  const encoded = encodeState();
+  history.replaceState(null, "", "#" + encoded);
+  try { localStorage.setItem("ryan-val-v3", JSON.stringify(STATE)); } catch {}
+}
+function loadState() {
+  const hash = location.hash.slice(1);
+  if (hash) { decodeState(hash); }
+  else { try { const s = localStorage.getItem("ryan-val-v3"); if (s) { const d = JSON.parse(s); if (d.periods) STATE = { ...STATE, ...d }; } } catch {} }
+}
+
+// ── Price Fetching ──
+async function fetchPrice() {
+  priceLoading = true;
+  render();
+  try {
+    const res = await fetch("/.netlify/functions/price?symbol=RYAN");
+    if (!res.ok) throw new Error("Function returned " + res.status);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    if (data.price && !isNaN(data.price)) {
+      livePrice = data.price;
+      prevClose = data.prevClose || null;
+      priceError = false;
+      lastFetch = new Date();
+    } else { throw new Error("No price"); }
+  } catch (err) { console.error("Price fetch:", err); priceError = true; }
+  priceLoading = false;
+  render();
+}
+
+// ── Chart Data Fetching ──
+async function fetchChartData(rangeKey) {
+  chartRange = rangeKey;
+  chartLoading = true;
+  render();
+  const cfg = CHART_RANGES.find(r => r.key === rangeKey);
+  if (!cfg) return;
+  try {
+    const res = await fetch(`/.netlify/functions/price?symbol=RYAN&range=${cfg.range}&interval=${cfg.interval}`);
+    if (!res.ok) throw new Error("Chart fetch failed");
+    const data = await res.json();
+    if (data.chart && data.chart.length > 0) {
+      chartData = data.chart;
+    }
+  } catch (err) { console.error("Chart fetch:", err); }
+  chartLoading = false;
+  render();
+  renderChart();
+}
+
+function getActivePrice() {
+  if (STATE.useManualPrice && STATE.manualPrice != null) return STATE.manualPrice;
+  return livePrice || STATE.manualPrice || 41.30;
+}
+
+// ── Chart Rendering ──
+function renderChart() {
+  const canvas = document.getElementById("priceChartCanvas");
+  if (!canvas || chartData.length === 0) return;
+
+  if (priceChart) { priceChart.destroy(); priceChart = null; }
+
+  const ctx = canvas.getContext("2d");
+
+  // Gradient fill
+  const gradient = ctx.createLinearGradient(0, 0, 0, canvas.parentElement.clientHeight);
+  const firstPrice = chartData[0].c;
+  const lastPrice = chartData[chartData.length - 1].c;
+  const isUp = lastPrice >= firstPrice;
+  if (isUp) {
+    gradient.addColorStop(0, "rgba(34,197,94,0.18)");
+    gradient.addColorStop(1, "rgba(34,197,94,0.0)");
+  } else {
+    gradient.addColorStop(0, "rgba(239,68,68,0.18)");
+    gradient.addColorStop(1, "rgba(239,68,68,0.0)");
+  }
+
+  const lineColor = isUp ? "#22c55e" : "#ef4444";
+
+  priceChart = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: chartData.map(d => new Date(d.t)),
+      datasets: [{
+        data: chartData.map(d => d.c),
+        borderColor: lineColor,
+        borderWidth: 1.8,
+        backgroundColor: gradient,
+        fill: true,
+        pointRadius: 0,
+        pointHitRadius: 8,
+        tension: 0.1,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: "#182536",
+          titleColor: "#b8c8db",
+          bodyColor: "#e4edf6",
+          titleFont: { family: "'JetBrains Mono'", size: 11 },
+          bodyFont: { family: "'JetBrains Mono'", size: 13, weight: "bold" },
+          borderColor: "#2a3f57",
+          borderWidth: 1,
+          padding: 10,
+          displayColors: false,
+          callbacks: {
+            title: function(items) {
+              const d = new Date(items[0].parsed.x);
+              return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+            },
+            label: function(item) { return "$" + item.parsed.y.toFixed(2); },
+          },
+        },
+      },
+      scales: {
+        x: {
+          type: "time",
+          time: {
+            tooltipFormat: "MMM d, yyyy",
+            displayFormats: {
+              hour: "ha",
+              day: "MMM d",
+              week: "MMM d",
+              month: "MMM yyyy",
+              year: "yyyy",
+            },
+          },
+          grid: { color: "rgba(24,37,54,0.5)", drawBorder: false },
+          ticks: { color: "#56687d", font: { family: "'JetBrains Mono'", size: 10 }, maxTicksLimit: 8 },
+          border: { display: false },
+        },
+        y: {
+          position: "right",
+          grid: { color: "rgba(24,37,54,0.5)", drawBorder: false },
+          ticks: {
+            color: "#56687d",
+            font: { family: "'JetBrains Mono'", size: 10 },
+            callback: function(val) { return "$" + val.toFixed(0); },
+          },
+          border: { display: false },
+        },
+      },
+    },
+  });
+}
+
+// ── Main Render ──
+function render() {
+  const ap = STATE.periods[STATE.activePeriodIdx] || STATE.periods[0];
+  const price = getActivePrice();
+  const d = ap ? calcDerived(ap, price) : null;
+
+  const isLive = !STATE.useManualPrice && livePrice != null;
+  const priceLabel = STATE.useManualPrice ? "MANUAL PRICE" : priceLoading && !livePrice ? "FETCHING..." : priceError && !livePrice ? "MANUAL FALLBACK" : "LIVE PRICE";
+  const priceClass = isLive ? "" : "stale";
+
+  let changeHtml = "";
+  if (isLive && prevClose && livePrice) {
+    const chg = livePrice - prevClose;
+    const pct = (chg / prevClose) * 100;
+    const dir = chg >= 0 ? "up" : "down";
+    const sign = chg >= 0 ? "+" : "";
+    changeHtml = `<div class="price-change ${dir}">${sign}${chg.toFixed(2)} (${sign}${pct.toFixed(2)}%)</div>`;
+  }
+
+  // Chart stats
+  let chartStatsHtml = "";
+  if (chartData.length > 1) {
+    const first = chartData[0].c;
+    const last = chartData[chartData.length - 1].c;
+    const high = Math.max(...chartData.map(d => d.c));
+    const low = Math.min(...chartData.map(d => d.c));
+    const chg = last - first;
+    const pct = (chg / first) * 100;
+    const dir = chg >= 0 ? "up" : "down";
+    const sign = chg >= 0 ? "+" : "";
+    chartStatsHtml = `
+      <div class="chart-stats">
+        <div><span class="chart-stat-label">Change:</span><span class="chart-stat-val ${dir}">${sign}$${chg.toFixed(2)} (${sign}${pct.toFixed(1)}%)</span></div>
+        <div><span class="chart-stat-label">High:</span><span class="chart-stat-val">$${high.toFixed(2)}</span></div>
+        <div><span class="chart-stat-label">Low:</span><span class="chart-stat-val">$${low.toFixed(2)}</span></div>
+        <div><span class="chart-stat-label">Open:</span><span class="chart-stat-val">$${first.toFixed(2)}</span></div>
+      </div>
+    `;
+  }
+
+  let html = `
+    <div class="header">
+      <div>
+        <div class="ticker">RYAN</div>
+        <div class="co-name">Ryan Specialty Holdings, Inc.</div>
+      </div>
+      <div class="price-box">
+        <div class="price-tag"><span class="status-dot ${isLive ? 'live' : 'off'}"></span>${priceLabel}</div>
+        <div class="price-val ${priceClass}">$${fmt(price,2)}</div>
+        ${changeHtml}
+        ${lastFetch && !STATE.useManualPrice ? `<div class="price-ts">Updated ${lastFetch.toLocaleTimeString()}</div>` : ""}
+      </div>
+    </div>
+
+    <!-- Share Price Chart -->
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">Share Price</span>
+        <div class="chart-filters">
+          ${CHART_RANGES.map(r => `<button class="chart-filter-btn ${chartRange === r.key ? 'active' : ''}" onclick="fetchChartData('${r.key}')">${r.label}</button>`).join("")}
+        </div>
+      </div>
+      <div class="chart-wrap">
+        ${chartLoading ? `<div class="chart-loading">Loading chart data...</div>` : `<div class="chart-container"><canvas id="priceChartCanvas"></canvas></div>`}
+      </div>
+      ${chartStatsHtml}
+    </div>
+
+    <div class="share-bar">
+      <span class="label">Share with team →</span>
+      <input class="share-url" id="shareUrl" readonly value="${location.origin + location.pathname + '#' + encodeState()}" onclick="this.select()">
+      <button class="btn-sm" onclick="copyUrl()">Copy Link</button>
+      <span class="copied-toast ${copiedShow ? 'show' : ''}" id="copiedToast">Copied!</span>
+    </div>
+
+    <div class="controls">
+      <div class="toggle-group">
+        <button class="toggle-btn ${!STATE.useManualPrice ? 'active' : ''}" onclick="setManualMode(false)">Live Price</button>
+        <button class="toggle-btn ${STATE.useManualPrice ? 'active' : ''}" onclick="setManualMode(true)">Manual</button>
+      </div>
+      ${STATE.useManualPrice || (priceError && !livePrice) ? `
+        <div class="manual-wrap"><span>$</span><input type="number" step="0.01" value="${STATE.manualPrice || ''}" placeholder="Price" oninput="updateManualPrice(this.value)"></div>
+      ` : ""}
+      ${!STATE.useManualPrice ? `<button class="btn-sm" onclick="fetchPrice()">↻ Refresh</button>` : ""}
+      ${priceError && !STATE.useManualPrice && !livePrice ? `<span class="warning">Live unavailable — enter manually</span>` : ""}
+    </div>
+
+    <div class="period-bar">
+      <div class="tabs">
+        ${STATE.periods.map((p, i) => `<button class="tab ${i === STATE.activePeriodIdx ? 'active' : ''}" onclick="selectPeriod(${i})">${p.label}</button>`).join("")}
+      </div>
+      <button class="tab tab-add" onclick="toggleAddForm()">+ Add Period</button>
+    </div>
+  `;
+
+  if (showAddForm) {
+    html += `
+    <div class="form-card">
+      <div class="form-title">Add New Period ($ in millions)</div>
+      <div class="form-grid">
+        <div class="form-field"><label>Period Label</label><input id="f_label" placeholder="e.g. LTM Mar-26"></div>
+        <div class="form-field"><label>EBITDA</label><input id="f_ebitda" type="number" step="0.1" placeholder="0.0"></div>
+        <div class="form-field"><label>Δ Contingent Consideration</label><input id="f_cc" type="number" step="0.1" placeholder="0.0"></div>
+        <div class="form-field"><label>Total Adjustments</label><input id="f_adj" type="number" step="0.1" placeholder="0.0"></div>
+        <div class="form-field"><label>Credit Adjustments</label><input id="f_cred" type="number" step="0.1" placeholder="0.0"></div>
+        <div class="form-field"><label>Shares Outstanding</label><input id="f_shares" type="number" step="0.1" placeholder="0"></div>
+        <div class="form-field"><label>Cash</label><input id="f_cash" type="number" step="0.1" placeholder="0.0"></div>
+        <div class="form-field"><label>LT + ST Debt</label><input id="f_debt" type="number" step="0.1" placeholder="0.0"></div>
+      </div>
+      <div class="form-actions">
+        <button class="btn-accent" onclick="addPeriod()">Add Period</button>
+        <button class="btn-cancel" onclick="toggleAddForm()">Cancel</button>
+      </div>
+    </div>`;
+  }
+
+  if (ap && d) {
+    const ef = editing;
+    const mkRow = (label, val, opts={}) => {
+      const cls = ["row"];
+      if (opts.indent) cls.push("indent");
+      if (opts.bold) cls.push("bold");
+      if (opts.accent) cls.push("accent");
+      if (opts.large) cls.push("large");
+      if (opts.spacer) return '<tr class="row spacer"><td colspan="2"></td></tr>';
+      const cell = ef && opts.field
+        ? `<input type="number" step="0.1" value="${ap[opts.field]||''}" oninput="updateField('${opts.field}', this.value)">`
+        : val;
+      return `<tr class="${cls.join(' ')}"><td>${label}</td><td>${cell}</td></tr>`;
+    };
+
+    html += `
+    <div class="card">
+      <div class="card-head">
+        <span class="card-title">Valuation Summary</span>
+        <span class="card-period">${ap.label}</span>
+        <div class="card-actions">
+          <button class="btn-edit" onclick="toggleEdit()">${editing ? 'Done' : 'Edit'}</button>
+          ${STATE.periods.length > 1 ? '<button class="btn-del" onclick="deletePeriod()">Delete</button>' : ""}
+        </div>
+      </div>
+      <table>
+        ${mkRow("EBITDA", fmtM(ap.ebitda), {field:"ebitda"})}
+        ${mkRow("(+) Change in Contingent Consideration", fmtM(ap.changeContingent), {indent:true, field:"changeContingent"})}
+        ${mkRow("EBITDAC", fmtM(d.ebitdac), {bold:true})}
+        ${mkRow("Total Adjustments", fmtM(ap.totalAdjustments), {indent:true, field:"totalAdjustments"})}
+        ${mkRow("Adjusted EBITDAC", fmtM(d.adjEbitdac), {bold:true, accent:true})}
+        ${mkRow("(+) Credit Adjustments", fmtM(ap.creditAdjustments), {indent:true, field:"creditAdjustments"})}
+        ${mkRow("PF Adjusted EBITDAC", fmtM(d.pfAdjEbitdac), {bold:true, accent:true})}
+        ${mkRow("", "", {spacer:true})}
+        ${mkRow("Total Shares Outstanding", fmt(ap.sharesOutstanding, 0), {field:"sharesOutstanding"})}
+        ${mkRow("Share Price (" + (STATE.useManualPrice ? "Manual" : "Live") + ")", "$"+fmt(price,2))}
+        ${mkRow("Equity Value", fmtM(d.equityValue), {bold:true})}
+        ${mkRow("", "", {spacer:true})}
+        ${mkRow("Cash", fmtM(ap.cash), {indent:true, field:"cash"})}
+        ${mkRow("Long Term Debt + ST Debt", fmtM(ap.totalDebt), {indent:true, field:"totalDebt"})}
+        ${mkRow("Net Debt", fmtM(d.netDebt), {bold:true})}
+        ${mkRow("", "", {spacer:true})}
+        ${mkRow("Enterprise Value", fmtM(d.ev), {bold:true, accent:true, large:true})}
+      </table>
+      <div class="multiples">
+        <div class="mult-card">
+          <div class="mult-label">Adjusted EBITDAC Multiple</div>
+          <div class="mult-val">${d.adjMultiple ? fmtX(d.adjMultiple) : "—"}</div>
+          <div class="mult-formula">EV / Adj. EBITDAC</div>
+        </div>
+        <div class="mult-card">
+          <div class="mult-label">Credit Adj. EBITDAC Multiple</div>
+          <div class="mult-val">${d.creditMultiple ? fmtX(d.creditMultiple) : "—"}</div>
+          <div class="mult-formula">EV / PF Adj. EBITDAC</div>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  if (STATE.periods.length > 1) {
+    const metrics = [
+      { label: "EBITDAC", fn: p => calcDerived(p, price).ebitdac },
+      { label: "Adj. EBITDAC", fn: p => calcDerived(p, price).adjEbitdac },
+      { label: "PF Adj. EBITDAC", fn: p => calcDerived(p, price).pfAdjEbitdac },
+      { label: "Net Debt", fn: p => calcDerived(p, price).netDebt },
+      { label: "Enterprise Value", fn: p => calcDerived(p, price).ev },
+      { label: "Adj. Multiple", fn: p => calcDerived(p, price).adjMultiple, isX: true },
+      { label: "Credit Adj. Multiple", fn: p => calcDerived(p, price).creditMultiple, isX: true },
+    ];
+    html += `
+    <div class="card">
+      <div class="card-head"><span class="card-title">Period Comparison</span></div>
+      <div class="comp-scroll">
+        <table class="comp-table">
+          <thead><tr><th></th>${STATE.periods.map(p => `<th>${p.label}</th>`).join("")}</tr></thead>
+          <tbody>
+            ${metrics.map(m => `<tr><td>${m.label}</td>${STATE.periods.map(p => {
+              const v = m.fn(p);
+              return `<td>${m.isX ? (v ? fmtX(v) : "—") : fmtM(v)}</td>`;
+            }).join("")}</tr>`).join("")}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+  }
+
+  html += '<div class="footer">Amounts in millions unless noted · Share the URL to give your team the same view · Auto-refreshes every 5 min</div>';
+  document.getElementById("app").innerHTML = html;
+
+  // Re-render chart after DOM update
+  if (!chartLoading && chartData.length > 0) {
+    setTimeout(renderChart, 10);
+  }
+}
+
+// ── Actions ──
+function setManualMode(m) { STATE.useManualPrice = m; pushState(); render(); }
+function updateManualPrice(v) { STATE.manualPrice = parseFloat(v) || null; pushState(); render(); }
+function selectPeriod(i) { STATE.activePeriodIdx = i; render(); }
+function toggleEdit() { editing = !editing; render(); }
+function toggleAddForm() { showAddForm = !showAddForm; render(); }
+function updateField(field, val) { STATE.periods[STATE.activePeriodIdx][field] = parseFloat(val) || 0; pushState(); render(); }
+function deletePeriod() {
+  if (STATE.periods.length <= 1) return;
+  STATE.periods.splice(STATE.activePeriodIdx, 1);
+  STATE.activePeriodIdx = 0;
+  pushState(); render();
+}
+function addPeriod() {
+  const label = document.getElementById("f_label")?.value?.trim();
+  if (!label) return;
+  STATE.periods.unshift({
+    id: label.toLowerCase().replace(/\s+/g,"-") + "-" + Date.now(),
+    label,
+    ebitda: parseFloat(document.getElementById("f_ebitda")?.value) || 0,
+    changeContingent: parseFloat(document.getElementById("f_cc")?.value) || 0,
+    totalAdjustments: parseFloat(document.getElementById("f_adj")?.value) || 0,
+    creditAdjustments: parseFloat(document.getElementById("f_cred")?.value) || 0,
+    sharesOutstanding: parseFloat(document.getElementById("f_shares")?.value) || 0,
+    cash: parseFloat(document.getElementById("f_cash")?.value) || 0,
+    totalDebt: parseFloat(document.getElementById("f_debt")?.value) || 0,
+  });
+  STATE.activePeriodIdx = 0;
+  showAddForm = false;
+  pushState(); render();
+}
+function copyUrl() {
+  const url = location.origin + location.pathname + "#" + encodeState();
+  navigator.clipboard.writeText(url).then(() => {
+    copiedShow = true; render();
+    setTimeout(() => { copiedShow = false; render(); }, 2000);
+  });
+}
+
+// ── Init ──
+loadState();
+render();
+fetchPrice();
+fetchChartData("1y");
+setInterval(fetchPrice, 300000);
+</script>
+</body>
+</html>
