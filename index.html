@@ -53,9 +53,19 @@
   .price-change { font-family: var(--mono); font-size: 0.78rem; margin-top: 3px; font-weight: 500; }
   .price-change.up { color: var(--green); } .price-change.down { color: var(--red); }
   .price-ts { font-size: 0.68rem; color: var(--text-dim); margin-top: 2px; }
+  .price-row { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
+  .btn-refresh { background: var(--navy-dim); border: none; color: var(--navy); font-family: var(--font); font-size: 0.82rem; font-weight: 700; width: 30px; height: 30px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+  .btn-refresh:hover { background: var(--navy); color: #fff; }
   .status-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; position: relative; top: -1px; }
   .status-dot.live { background: var(--green); box-shadow: 0 0 6px rgba(46,158,90,0.5); }
   .status-dot.off { background: var(--text-dim); }
+
+  /* Top Stats */
+  .top-stats { display: flex; gap: 14px; margin-bottom: 18px; flex-wrap: wrap; }
+  .top-stat { flex: 1; min-width: 160px; background: var(--card); border: 1px solid var(--card-border); border-radius: 12px; box-shadow: var(--card-shadow); padding: 16px 20px; }
+  .top-stat-label { font-size: 0.7rem; color: var(--text-dim); font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 4px; }
+  .top-stat-val { font-family: var(--mono); font-size: 1.5rem; font-weight: 500; color: var(--navy); }
+  .top-stat-sub { font-size: 0.7rem; color: var(--text-dim); font-weight: 500; margin-top: 2px; }
 
   /* Controls */
   .controls { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; }
@@ -155,6 +165,30 @@
   .pw-btn:hover { background: var(--navy-light); }
   .pw-error { color: var(--red); font-size: 0.8rem; font-weight: 600; margin-top: 12px; }
 
+  /* SEC Filings */
+  .filings-table { width: 100%; border-collapse: collapse; }
+  .filings-table th { padding: 10px 16px; text-align: left; color: var(--navy); font-size: 0.75rem; font-weight: 700; border-bottom: 2px solid var(--card-border); text-transform: uppercase; letter-spacing: 0.3px; }
+  .filings-table th:last-child { text-align: right; }
+  .filings-table td { padding: 10px 16px; font-size: 0.82rem; border-bottom: 1px solid var(--card-border); vertical-align: top; }
+  .filings-table td:last-child { text-align: right; white-space: nowrap; }
+  .filings-table tr:hover { background: var(--surface); }
+  .filing-form { display: inline-block; background: var(--navy-dim); color: var(--navy); font-size: 0.72rem; font-weight: 700; padding: 2px 8px; border-radius: 4px; white-space: nowrap; }
+  .filing-form.form4 { background: var(--purple-dim); color: var(--purple); }
+  .filing-form.form10k { background: var(--green-dim); color: var(--green); }
+  .filing-form.form10q { background: var(--teal-dim); color: var(--teal); }
+  .filing-form.form8k { background: rgba(228,147,10,0.1); color: var(--amber); }
+  .filing-form.proxy { background: var(--red-dim); color: var(--red); }
+  .filing-link { color: var(--navy); text-decoration: none; font-weight: 600; }
+  .filing-link:hover { text-decoration: underline; }
+  .filing-desc { color: var(--text-dim); font-size: 0.78rem; margin-top: 2px; line-height: 1.4; }
+  .filing-insider { font-size: 0.75rem; color: var(--text); margin-top: 3px; }
+  .filing-insider .bought { color: var(--green); font-weight: 600; }
+  .filing-insider .sold { color: var(--red); font-weight: 600; }
+  .filings-filters { display: flex; gap: 5px; flex-wrap: wrap; }
+  .filings-count { font-size: 0.75rem; color: var(--text-dim); font-weight: 600; padding: 14px 16px; }
+  .filings-loading { padding: 40px; text-align: center; color: var(--text-dim); font-weight: 600; }
+  .filings-scroll { max-height: 600px; overflow-y: auto; }
+
   .footer { text-align: center; color: var(--text-dim); font-size: 0.72rem; font-weight: 500; padding: 20px 0; }
 
   @media (max-width: 600px) {
@@ -190,6 +224,7 @@ let livePrice=null,prevClose=null,priceLoading=true,priceError=false,lastFetch=n
 let editing=false,showAddForm=false,copiedShow=false;
 let priceChart=null,multChart=null,chartRange="1y",chartLoading=false,chartData=[];
 let multChartLoading=false,multChartData=[],showAdjLine=true,showCreditLine=true;
+let filingsData=[],filingsLoading=false,filingsFilter="All",filingsLoaded=false;
 
 const CHART_RANGES=[
   {key:"1w",label:"1W",range:"5d",interval:"15m"},{key:"1m",label:"1M",range:"1mo",interval:"1d"},
@@ -242,6 +277,59 @@ async function fetchMultChartData(){
   multChartLoading=false;render();renderMultChart();
 }
 function getActivePrice(){if(STATE.useManualPrice&&STATE.manualPrice!=null)return STATE.manualPrice;return livePrice||STATE.manualPrice||41.30;}
+
+// Filing descriptions
+function getFilingDesc(form, desc) {
+  const d = desc || "";
+  const formUp = form.toUpperCase().trim();
+  if (formUp === "10-K") return d || "Annual Report — full-year financial statements, MD&A, risk factors";
+  if (formUp === "10-Q") return d || "Quarterly Report — interim financial statements and MD&A";
+  if (formUp === "8-K") return d || "Current Report — material event disclosure";
+  if (formUp === "DEF 14A") return d || "Definitive Proxy Statement — executive compensation, board nominees, shareholder proposals";
+  if (formUp === "ARS") return d || "Annual Report to Shareholders";
+  if (formUp === "S-1" || formUp === "S-1/A") return d || "Registration Statement — IPO or secondary offering";
+  if (formUp === "SC 13G" || formUp === "SC 13G/A") return d || "Passive investor ownership disclosure (>5% stake)";
+  if (formUp === "SC 13D" || formUp === "SC 13D/A") return d || "Active investor ownership disclosure (>5% stake)";
+  if (formUp === "4") return d || "Insider transaction — officer/director buy or sell";
+  if (formUp === "3") return d || "Initial insider ownership statement";
+  if (formUp === "144") return d || "Notice of proposed sale of restricted securities";
+  if (formUp === "EFFECT") return d || "Notice of effectiveness of registration statement";
+  return d || form + " filing";
+}
+function getFormClass(form) {
+  const f = form.toUpperCase().trim();
+  if (f === "4" || f === "3") return "form4";
+  if (f === "10-K") return "form10k";
+  if (f === "10-Q") return "form10q";
+  if (f === "8-K") return "form8k";
+  if (f === "DEF 14A" || f === "ARS") return "proxy";
+  return "";
+}
+
+const FILING_FILTERS = ["All", "10-K", "10-Q", "8-K", "Proxy", "Form 4", "13G/13D", "Other"];
+function matchesFilter(form, filter) {
+  if (filter === "All") return true;
+  const f = form.toUpperCase().trim();
+  if (filter === "10-K") return f === "10-K" || f === "10-K/A";
+  if (filter === "10-Q") return f === "10-Q" || f === "10-Q/A";
+  if (filter === "8-K") return f === "8-K" || f === "8-K/A";
+  if (filter === "Proxy") return f === "DEF 14A" || f === "DEFA14A" || f === "ARS" || f === "DEF 14C";
+  if (filter === "Form 4") return f === "4" || f === "3" || f === "4/A";
+  if (filter === "13G/13D") return f.includes("SC 13");
+  if (filter === "Other") return !["10-K","10-K/A","10-Q","10-Q/A","8-K","8-K/A","DEF 14A","DEFA14A","ARS","DEF 14C","4","3","4/A","SC 13G","SC 13G/A","SC 13D","SC 13D/A"].includes(f);
+  return true;
+}
+
+async function fetchFilings() {
+  filingsLoading = true; render();
+  try {
+    const r = await fetch("/.netlify/functions/filings?action=list");
+    const d = await r.json();
+    if (d.filings) filingsData = d.filings;
+  } catch(e) { console.error("Filings fetch:", e); }
+  filingsLoading = false; filingsLoaded = true; render();
+}
+function setFilingsFilter(f) { filingsFilter = f; render(); }
 
 function renderPriceChart(){
   const canvas=document.getElementById("priceChartCanvas");if(!canvas||chartData.length===0)return;
@@ -306,7 +394,13 @@ function render(){
 
   let html=`
     <div class="header"><div><div class="ticker">RYAN</div><div class="co-name">Ryan Specialty Holdings, Inc.</div></div>
-      <div class="price-box"><div class="price-tag"><span class="status-dot ${isLive?'live':'off'}"></span>${priceLabel}</div><div class="price-val ${priceClass}">$${fmt(price,2)}</div>${changeHtml}${lastFetch&&!STATE.useManualPrice?`<div class="price-ts">Updated ${lastFetch.toLocaleTimeString()}</div>`:""}</div></div>
+      <div class="price-box"><div class="price-tag"><span class="status-dot ${isLive?'live':'off'}"></span>${priceLabel}</div><div class="price-row"><div class="price-val ${priceClass}">$${fmt(price,2)}</div><button class="btn-refresh" onclick="fetchPrice()" title="Refresh price">↻</button></div>${changeHtml}${lastFetch&&!STATE.useManualPrice?`<div class="price-ts">Updated ${lastFetch.toLocaleTimeString()}</div>`:""}</div></div>
+
+    <div class="top-stats">
+      <div class="top-stat"><div class="top-stat-label">Share Price</div><div class="top-stat-val">$${fmt(price,2)}</div><div class="top-stat-sub">${isLive?"Live":"Manual"} · ${ap?ap.label:""}</div></div>
+      <div class="top-stat"><div class="top-stat-label">Adj. EBITDAC Multiple</div><div class="top-stat-val">${d&&d.adjMultiple?fmtX(d.adjMultiple):"—"}</div><div class="top-stat-sub">EV / Adj. EBITDAC</div></div>
+      <div class="top-stat"><div class="top-stat-label">Credit Adj. Multiple</div><div class="top-stat-val">${d&&d.creditMultiple?fmtX(d.creditMultiple):"—"}</div><div class="top-stat-sub">EV / PF Adj. EBITDAC</div></div>
+    </div>
 
     <div class="card"><div class="card-head"><span class="card-title">Daily Multiple Tracker</span>
       <div class="mult-toggles"><button class="chart-filter-btn ${showAdjLine?'active-blue':''}" onclick="toggleMultLine('adj')">Adj. EBITDAC</button><button class="chart-filter-btn ${showCreditLine?'active-purple':''}" onclick="toggleMultLine('credit')">PF Adj. EBITDAC</button></div></div>
@@ -350,6 +444,33 @@ function render(){
     html+=`<div class="card"><div class="card-head"><span class="card-title">Period Comparison</span></div><div class="comp-scroll"><table class="comp-table"><thead><tr><th></th>${STATE.periods.map(p=>`<th>${p.label}</th>`).join("")}</tr></thead><tbody>
       ${metrics.map(m=>`<tr><td>${m.label}</td>${STATE.periods.map(p=>{const v=m.fn(p);return`<td>${m.isX?(v?fmtX(v):"—"):fmtM(v)}</td>`;}).join("")}</tr>`).join("")}</tbody></table></div></div>`;}
 
+  // SEC Filings Section
+  const filtered = filingsData.filter(f => matchesFilter(f.form, filingsFilter));
+  html += `<div class="card">
+    <div class="card-head">
+      <span class="card-title">SEC Filings</span>
+      <div class="filings-filters">${FILING_FILTERS.map(f => `<button class="chart-filter-btn ${filingsFilter===f?'active':''}" onclick="setFilingsFilter('${f}')">${f}</button>`).join("")}</div>
+    </div>`;
+  if (filingsLoading) {
+    html += '<div class="filings-loading">Loading SEC filings...</div>';
+  } else if (!filingsLoaded) {
+    html += '<div class="filings-loading"><button class="btn-accent" onclick="fetchFilings()">Load SEC Filings</button></div>';
+  } else {
+    html += `<div class="filings-count">${filtered.length} filing${filtered.length!==1?'s':''} found</div><div class="filings-scroll"><table class="filings-table"><thead><tr><th>Form</th><th>Description</th><th>Date</th></tr></thead><tbody>`;
+    for (const f of filtered) {
+      const fclass = getFormClass(f.form);
+      const desc = getFilingDesc(f.form, f.description);
+      const dateStr = new Date(f.date + "T12:00:00").toLocaleDateString("en-US", {month:"short",day:"numeric",year:"numeric"});
+      html += `<tr>
+        <td><span class="filing-form ${fclass}">${f.form}</span></td>
+        <td><a class="filing-link" href="${f.url}" target="_blank" rel="noopener">${f.form === "4" ? "Insider Transaction" : f.form + " Filing"}</a><div class="filing-desc">${desc}</div></td>
+        <td>${dateStr}</td>
+      </tr>`;
+    }
+    html += '</tbody></table></div>';
+  }
+  html += '</div>';
+
   html+='<div class="footer">Amounts in millions unless noted · Share the URL to sync data across your team · Auto-refreshes every 5 min</div>';
   document.getElementById("app").innerHTML=html;
   if(!chartLoading&&chartData.length>0)setTimeout(renderPriceChart,10);
@@ -368,7 +489,7 @@ function toggleMultLine(which){if(which==='adj')showAdjLine=!showAdjLine;else sh
 function copyUrl(){navigator.clipboard.writeText(location.origin+location.pathname+"#"+encodeState()).then(()=>{copiedShow=true;render();setTimeout(()=>{copiedShow=false;render();},2000);});}
 
 function checkPw(){const input=document.getElementById("pwInput").value;if(input==="Amwins"){sessionStorage.setItem("ryan-auth","1");document.getElementById("pwGate").style.display="none";document.getElementById("app").style.display="block";initApp();}else{document.getElementById("pwError").style.display="block";document.getElementById("pwInput").value="";document.getElementById("pwInput").focus();}}
-function initApp(){loadState();render();fetchPrice();fetchChartData("1y");fetchMultChartData();setInterval(fetchPrice,300000);}
+function initApp(){loadState();render();fetchPrice();fetchChartData("1y");fetchMultChartData();fetchFilings();setInterval(fetchPrice,300000);}
 if(sessionStorage.getItem("ryan-auth")==="1"){document.getElementById("pwGate").style.display="none";document.getElementById("app").style.display="block";initApp();}else{document.getElementById("pwInput").focus();}
 </script>
 </body>
