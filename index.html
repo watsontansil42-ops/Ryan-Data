@@ -488,7 +488,7 @@ function addPeriod(){const label=document.getElementById("f_label")?.value?.trim
 function toggleMultLine(which){if(which==='adj')showAdjLine=!showAdjLine;else showCreditLine=!showCreditLine;if(!showAdjLine&&!showCreditLine){if(which==='adj')showCreditLine=true;else showAdjLine=true;}render();renderMultChart();}
 function copyUrl(){navigator.clipboard.writeText(location.origin+location.pathname+"#"+encodeState()).then(()=>{copiedShow=true;render();setTimeout(()=>{copiedShow=false;render();},2000);});}
 
-function checkPw(){const input=document.getElementById("pwInput").value;if(input==="Amwins"){sessionStorage.setItem("ryan-auth","1");document.getElementById("pwGate").style.display="none";document.getElementById("app").style.display="block";initApp();}else{document.getElementById("pwError").style.display="block";document.getElementById("pwInput").value="";document.getElementById("pwInput").focus();}}
+function checkPw(){const input=document.getElementById("pwInput").value;if(input==="RYAN"){sessionStorage.setItem("ryan-auth","1");document.getElementById("pwGate").style.display="none";document.getElementById("app").style.display="block";initApp();}else{document.getElementById("pwError").style.display="block";document.getElementById("pwInput").value="";document.getElementById("pwInput").focus();}}
 function initApp(){loadState();render();fetchPrice();fetchChartData("1y");fetchMultChartData();fetchFilings();setInterval(fetchPrice,300000);}
 if(sessionStorage.getItem("ryan-auth")==="1"){document.getElementById("pwGate").style.display="none";document.getElementById("app").style.display="block";initApp();}else{document.getElementById("pwInput").focus();}
 </script>
