@@ -218,8 +218,9 @@ const DEFAULT_PERIODS = [
   { id:"ltm-jun25", label:"LTM Jun-25", effectiveDate:"2025-07-31", ebitda:733.2, changeContingent:-38.9, totalAdjustments:220.9, creditAdjustments:41.0, sharesOutstanding:262, cash:0, totalDebt:3299 },
   { id:"ltm-sep25", label:"LTM Sep-25", effectiveDate:"2025-10-30", ebitda:812.4, changeContingent:-26.5, totalAdjustments:174.6, creditAdjustments:26.0, sharesOutstanding:264, cash:157, totalDebt:3392 },
   { id:"ltm-dec25", label:"LTM Dec-25", effectiveDate:"2026-02-12", ebitda:803.1, changeContingent:13.1, totalAdjustments:150.5, creditAdjustments:35.5, sharesOutstanding:264, cash:158, totalDebt:3352 },
+  { id:"ltm-mar26", label:"LTM Mar-26", effectiveDate:"2026-05-01", ebitda:803.1, changeContingent:13.1, totalAdjustments:182.1, creditAdjustments:48.4, sharesOutstanding:263, cash:155, totalDebt:3569 },
 ];
-let STATE={periods:[...DEFAULT_PERIODS],activePeriodIdx:3,manualPrice:null,useManualPrice:false};
+let STATE={periods:[...DEFAULT_PERIODS],activePeriodIdx:4,manualPrice:null,useManualPrice:false};
 let livePrice=null,prevClose=null,priceLoading=true,priceError=false,lastFetch=null;
 let editing=false,showAddForm=false,copiedShow=false;
 let priceChart=null,multChart=null,chartRange="1y",chartLoading=false,chartData=[];
@@ -256,8 +257,8 @@ function getActivePeriodForDate(dateMs){
 
 function encodeState(){try{return btoa(unescape(encodeURIComponent(JSON.stringify({p:STATE.periods,mp:STATE.manualPrice,um:STATE.useManualPrice}))));}catch{return "";}}
 function decodeState(h){try{const j=decodeURIComponent(escape(atob(h)));const d=JSON.parse(j);if(d.p&&Array.isArray(d.p)){STATE.periods=d.p;STATE.manualPrice=d.mp||null;STATE.useManualPrice=!!d.um;}}catch{}}
-function pushState(){history.replaceState(null,"","#"+encodeState());try{localStorage.setItem("ryan-val-v5",JSON.stringify(STATE));}catch{}}
-function loadState(){const h=location.hash.slice(1);if(h){decodeState(h);}else{try{const s=localStorage.getItem("ryan-val-v5");if(s){const d=JSON.parse(s);if(d.periods)STATE={...STATE,...d};}}catch{}}}
+function pushState(){history.replaceState(null,"","#"+encodeState());try{localStorage.setItem("ryan-val-v6",JSON.stringify(STATE));}catch{}}
+function loadState(){const h=location.hash.slice(1);if(h){decodeState(h);}else{try{const s=localStorage.getItem("ryan-val-v6");if(s){const d=JSON.parse(s);if(d.periods)STATE={...STATE,...d};}}catch{}}}
 
 async function fetchPrice(){
   priceLoading=true;render();
@@ -488,7 +489,7 @@ function addPeriod(){const label=document.getElementById("f_label")?.value?.trim
 function toggleMultLine(which){if(which==='adj')showAdjLine=!showAdjLine;else showCreditLine=!showCreditLine;if(!showAdjLine&&!showCreditLine){if(which==='adj')showCreditLine=true;else showAdjLine=true;}render();renderMultChart();}
 function copyUrl(){navigator.clipboard.writeText(location.origin+location.pathname+"#"+encodeState()).then(()=>{copiedShow=true;render();setTimeout(()=>{copiedShow=false;render();},2000);});}
 
-function checkPw(){const input=document.getElementById("pwInput").value;if(input==="RYAN"){sessionStorage.setItem("ryan-auth","1");document.getElementById("pwGate").style.display="none";document.getElementById("app").style.display="block";initApp();}else{document.getElementById("pwError").style.display="block";document.getElementById("pwInput").value="";document.getElementById("pwInput").focus();}}
+function checkPw(){const input=document.getElementById("pwInput").value;if(input==="Amwins"){sessionStorage.setItem("ryan-auth","1");document.getElementById("pwGate").style.display="none";document.getElementById("app").style.display="block";initApp();}else{document.getElementById("pwError").style.display="block";document.getElementById("pwInput").value="";document.getElementById("pwInput").focus();}}
 function initApp(){loadState();render();fetchPrice();fetchChartData("1y");fetchMultChartData();fetchFilings();setInterval(fetchPrice,300000);}
 if(sessionStorage.getItem("ryan-auth")==="1"){document.getElementById("pwGate").style.display="none";document.getElementById("app").style.display="block";initApp();}else{document.getElementById("pwInput").focus();}
 </script>
