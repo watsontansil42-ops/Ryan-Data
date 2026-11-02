@@ -399,26 +399,118 @@ function renderEbitdacChart(){
   const ebitdacVals=display.map(p=>(p.ebitda||0)+(p.changeContingent||0));
   const adjVals=display.map(p=>p.totalAdjustments||0);
   const creditVals=display.map(p=>p.creditAdjustments||0);
-  // Annotation values
   const adjTotals=display.map((p,i)=>ebitdacVals[i]+adjVals[i]);
   const creditTotals=display.map((p,i)=>adjTotals[i]+creditVals[i]);
+
+  // Plugins
+  const dashedBorderPlugin={
+    id:"dashedBorder",
+    afterDatasetDraw(chart,args){
+      if(args.index!==2)return; // only credit adj dataset
+      const meta=chart.getDatasetMeta(2);
+      const c=chart.ctx;
+      c.save();
+      meta.data.forEach((bar)=>{
+        const {x,y,width,height}=bar.getProps(["x","y","width","height"]);
+        const hw=width/2;
+        c.beginPath();
+        c.setLineDash([4,3]);
+        c.strokeStyle="#6a5acd";
+        c.lineWidth=1.8;
+        c.rect(x-hw,y,width,bar.base-y);
+        c.stroke();
+        c.setLineDash([]);
+      });
+      c.restore();
+    }
+  };
+
+  const labelsPlugin={
+    id:"barLabels",
+    afterDraw(chart){
+      const c=chart.ctx;
+      c.save();
+      // EBITDAC labels (dataset 0)
+      const m0=chart.getDatasetMeta(0);
+      c.font="500 10px 'DM Mono'";
+      c.textAlign="center";
+      m0.data.forEach((bar,i)=>{
+        const h=bar.base-bar.y;
+        if(h>24){
+          c.fillStyle="rgba(255,255,255,0.85)";
+          c.fillText("$"+ebitdacVals[i].toFixed(0),bar.x,bar.y+h/2+4);
+        }
+      });
+      // Adjustments labels (dataset 1)
+      const m1=chart.getDatasetMeta(1);
+      m1.data.forEach((bar,i)=>{
+        const h=bar.base-bar.y;
+        if(h>20){
+          c.fillStyle="rgba(255,255,255,0.85)";
+          c.fillText("$"+adjVals[i].toFixed(0),bar.x,bar.y+h/2+4);
+        }
+      });
+      // Credit adj labels (dataset 2)
+      const m2=chart.getDatasetMeta(2);
+      m2.data.forEach((bar,i)=>{
+        const h=bar.base-bar.y;
+        if(h>16){
+          c.fillStyle="#6a5acd";
+          c.fillText("$"+creditVals[i].toFixed(0),bar.x,bar.y+h/2+4);
+        }
+      });
+      // PF Adj EBITDAC total above bar
+      c.font="700 11px 'DM Mono'";
+      c.fillStyle="#002B49";
+      m2.data.forEach((bar,i)=>{
+        c.fillText("$"+creditTotals[i].toFixed(0),bar.x,bar.y-8);
+      });
+      // Adj EBITDAC line marker
+      c.font="500 9px 'DM Mono'";
+      c.fillStyle="#0097a7";
+      const m1b=chart.getDatasetMeta(1);
+      m1b.data.forEach((bar,i)=>{
+        const {x,width}=bar.getProps(["x","width"]);
+        const hw=width/2;
+        c.beginPath();
+        c.strokeStyle="#0097a7";
+        c.lineWidth=1.5;
+        c.moveTo(x-hw-4,bar.y);
+        c.lineTo(x+hw+4,bar.y);
+        c.stroke();
+        c.fillText("Adj: $"+adjTotals[i].toFixed(0),x,bar.y-4);
+      });
+      c.restore();
+    }
+  };
 
   ebitdacChart=new Chart(ctx,{
     type:"bar",
     data:{
       labels,
       datasets:[
-        {label:"EBITDAC",data:ebitdacVals,backgroundColor:"#002B49",borderRadius:{topLeft:0,topRight:0},barPercentage:0.55},
-        {label:"Adjustments",data:adjVals,backgroundColor:"#0097a7",borderRadius:0,barPercentage:0.55},
-        {label:"Credit Adjustments",data:creditVals,backgroundColor:"rgba(106,90,205,0.7)",borderRadius:{topLeft:4,topRight:4},barPercentage:0.55},
+        {label:"EBITDAC",data:ebitdacVals,backgroundColor:"#002B49",borderRadius:0,barPercentage:0.5,categoryPercentage:0.7},
+        {label:"Adjustments",data:adjVals,backgroundColor:"#0097a7",borderRadius:0,barPercentage:0.5,categoryPercentage:0.7},
+        {label:"Credit Adjustments",data:creditVals,backgroundColor:"rgba(106,90,205,0.06)",borderRadius:0,barPercentage:0.5,categoryPercentage:0.7},
       ]
     },
     options:{
       responsive:true,maintainAspectRatio:false,
+      layout:{padding:{top:28}},
       plugins:{
         legend:{
           position:"bottom",
-          labels:{font:{family:"'Nunito Sans'",size:11,weight:"600"},color:"#8895a7",boxWidth:12,boxHeight:12,borderRadius:3,useBorderRadius:true,padding:16}
+          labels:{
+            font:{family:"'Nunito Sans'",size:11,weight:"600"},color:"#8895a7",
+            boxWidth:12,boxHeight:12,borderRadius:3,useBorderRadius:true,padding:16,
+            generateLabels(chart){
+              return [
+                {text:"EBITDAC",fillStyle:"#002B49",strokeStyle:"#002B49",lineWidth:0,borderRadius:3},
+                {text:"Adjustments",fillStyle:"#0097a7",strokeStyle:"#0097a7",lineWidth:0,borderRadius:3},
+                {text:"Credit Adjustments",fillStyle:"rgba(106,90,205,0.08)",strokeStyle:"#6a5acd",lineWidth:1.5,lineDash:[4,3],borderRadius:3},
+              ];
+            }
+          }
         },
         tooltip:{
           backgroundColor:"#fff",titleColor:"#3a4a5c",bodyColor:"#002B49",
@@ -429,40 +521,20 @@ function renderEbitdacChart(){
           callbacks:{
             afterBody(items){
               const i=items[0].dataIndex;
-              return [
-                "─────────────────",
-                "Adj. EBITDAC: $"+adjTotals[i].toFixed(1),
-                "PF Adj. EBITDAC: $"+creditTotals[i].toFixed(1)
-              ];
+              return ["───────────────","Adj. EBITDAC: $"+adjTotals[i].toFixed(1),"PF Adj. EBITDAC: $"+creditTotals[i].toFixed(1)];
             },
-            label(item){
-              return " "+item.dataset.label+": $"+item.parsed.y.toFixed(1);
-            }
+            label(item){ return " "+item.dataset.label+": $"+(item.dataset.label==="Credit Adjustments"?creditVals[item.dataIndex]:item.parsed.y).toFixed(1); }
           }
         }
       },
       scales:{
         x:{stacked:true,grid:{display:false},ticks:{color:"#8895a7",font:{family:"'Nunito Sans'",size:11,weight:"600"}},border:{display:false}},
         y:{stacked:true,position:"right",grid:{color:"rgba(0,43,73,0.05)",drawBorder:false},
-          ticks:{color:"#8895a7",font:{family:"'DM Mono'",size:10},callback(v){return "$"+v;}},
-          border:{display:false}}
+          ticks:{color:"#8895a7",font:{family:"'DM Mono'",size:10},callback(v){return "$"+v;}},border:{display:false},
+          suggestedMax:Math.max(...creditTotals)*1.08}
       }
     },
-    plugins:[{
-      id:"barTotals",
-      afterDraw(chart){
-        const ctx2=chart.ctx;
-        const meta=chart.getDatasetMeta(2);
-        ctx2.save();
-        ctx2.font="600 10px 'DM Mono'";
-        ctx2.fillStyle="#3a4a5c";
-        ctx2.textAlign="center";
-        meta.data.forEach((bar,i)=>{
-          ctx2.fillText("$"+creditTotals[i].toFixed(0),bar.x,bar.y-6);
-        });
-        ctx2.restore();
-      }
-    }]
+    plugins:[dashedBorderPlugin,labelsPlugin]
   });
 }
 
