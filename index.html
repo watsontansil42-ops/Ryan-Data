@@ -228,6 +228,7 @@ let editing=false,showAddForm=false,copiedShow=false;
 let priceChart=null,multChart=null,chartRange="1y",chartLoading=false,chartData=[];
 let multChartLoading=false,multChartData=[],showAdjLine=true,showCreditLine=true;
 let filingsData=[],filingsLoading=false,filingsFilter="All",filingsLoaded=false;
+let ebitdacChart=null, ebitdacShowAll=false;
 
 const CHART_RANGES=[
   {key:"1w",label:"1W",range:"5d",interval:"15m"},{key:"1m",label:"1M",range:"1mo",interval:"1d"},
@@ -386,6 +387,87 @@ function renderMultChart(){
   });
 }
 
+function renderEbitdacChart(){
+  const canvas=document.getElementById("ebitdacChartCanvas");
+  if(!canvas)return;
+  if(ebitdacChart){ebitdacChart.destroy();ebitdacChart=null;}
+  const ctx=canvas.getContext("2d");
+  const sorted=[...STATE.periods].sort((a,b)=>new Date(a.effectiveDate)-new Date(b.effectiveDate));
+  const display=ebitdacShowAll?sorted:sorted.slice(-4);
+
+  const labels=display.map(p=>p.label);
+  const ebitdacVals=display.map(p=>(p.ebitda||0)+(p.changeContingent||0));
+  const adjVals=display.map(p=>p.totalAdjustments||0);
+  const creditVals=display.map(p=>p.creditAdjustments||0);
+  // Annotation values
+  const adjTotals=display.map((p,i)=>ebitdacVals[i]+adjVals[i]);
+  const creditTotals=display.map((p,i)=>adjTotals[i]+creditVals[i]);
+
+  ebitdacChart=new Chart(ctx,{
+    type:"bar",
+    data:{
+      labels,
+      datasets:[
+        {label:"EBITDAC",data:ebitdacVals,backgroundColor:"#002B49",borderRadius:{topLeft:0,topRight:0},barPercentage:0.55},
+        {label:"Adjustments",data:adjVals,backgroundColor:"#0097a7",borderRadius:0,barPercentage:0.55},
+        {label:"Credit Adjustments",data:creditVals,backgroundColor:"rgba(106,90,205,0.7)",borderRadius:{topLeft:4,topRight:4},barPercentage:0.55},
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{
+          position:"bottom",
+          labels:{font:{family:"'Nunito Sans'",size:11,weight:"600"},color:"#8895a7",boxWidth:12,boxHeight:12,borderRadius:3,useBorderRadius:true,padding:16}
+        },
+        tooltip:{
+          backgroundColor:"#fff",titleColor:"#3a4a5c",bodyColor:"#002B49",
+          titleFont:{family:"'Nunito Sans'",size:12,weight:"700"},
+          bodyFont:{family:"'DM Mono'",size:11,weight:"500"},
+          borderColor:"#e2e6ec",borderWidth:1,padding:12,displayColors:true,
+          boxWidth:8,boxHeight:8,
+          callbacks:{
+            afterBody(items){
+              const i=items[0].dataIndex;
+              return [
+                "─────────────────",
+                "Adj. EBITDAC: $"+adjTotals[i].toFixed(1),
+                "PF Adj. EBITDAC: $"+creditTotals[i].toFixed(1)
+              ];
+            },
+            label(item){
+              return " "+item.dataset.label+": $"+item.parsed.y.toFixed(1);
+            }
+          }
+        }
+      },
+      scales:{
+        x:{stacked:true,grid:{display:false},ticks:{color:"#8895a7",font:{family:"'Nunito Sans'",size:11,weight:"600"}},border:{display:false}},
+        y:{stacked:true,position:"right",grid:{color:"rgba(0,43,73,0.05)",drawBorder:false},
+          ticks:{color:"#8895a7",font:{family:"'DM Mono'",size:10},callback(v){return "$"+v;}},
+          border:{display:false}}
+      }
+    },
+    plugins:[{
+      id:"barTotals",
+      afterDraw(chart){
+        const ctx2=chart.ctx;
+        const meta=chart.getDatasetMeta(2);
+        ctx2.save();
+        ctx2.font="600 10px 'DM Mono'";
+        ctx2.fillStyle="#3a4a5c";
+        ctx2.textAlign="center";
+        meta.data.forEach((bar,i)=>{
+          ctx2.fillText("$"+creditTotals[i].toFixed(0),bar.x,bar.y-6);
+        });
+        ctx2.restore();
+      }
+    }]
+  });
+}
+
+function toggleEbitdacView(){ebitdacShowAll=!ebitdacShowAll;render();renderEbitdacChart();}
+
 function render(){
   const ap=STATE.periods[STATE.activePeriodIdx]||STATE.periods[0];
   const price=getActivePrice();const d=ap?calcDerived(ap,price):null;
@@ -412,6 +494,10 @@ function render(){
     <div class="card"><div class="card-head"><span class="card-title">Share Price</span>
       <div class="chart-filters">${CHART_RANGES.map(r=>`<button class="chart-filter-btn ${chartRange===r.key?'active':''}" onclick="fetchChartData('${r.key}')">${r.label}</button>`).join("")}</div></div>
       <div class="chart-wrap">${chartLoading?'<div class="chart-loading">Loading chart data...</div>':`<div class="chart-container"><canvas id="priceChartCanvas"></canvas></div>`}</div></div>
+
+    <div class="card"><div class="card-head"><span class="card-title">EBITDAC Build</span>
+      <div class="chart-filters"><button class="chart-filter-btn ${!ebitdacShowAll?'active':''}" onclick="if(ebitdacShowAll)toggleEbitdacView()">Last 4 Quarters</button><button class="chart-filter-btn ${ebitdacShowAll?'active':''}" onclick="if(!ebitdacShowAll)toggleEbitdacView()">All Periods</button></div></div>
+      <div class="chart-wrap"><div class="chart-container"><canvas id="ebitdacChartCanvas"></canvas></div></div></div>
 
     <div class="share-bar"><span class="label">Share with team →</span><input class="share-url" readonly value="${location.origin+location.pathname+'#'+encodeState()}" onclick="this.select()"><button class="btn-sm" onclick="copyUrl()">Copy Link</button><span class="copied-toast ${copiedShow?'show':''}">Copied!</span></div>
 
@@ -478,6 +564,7 @@ function render(){
   document.getElementById("app").innerHTML=html;
   if(!chartLoading&&chartData.length>0)setTimeout(renderPriceChart,10);
   if(!multChartLoading&&multChartData.length>0)setTimeout(renderMultChart,10);
+  setTimeout(renderEbitdacChart,15);
 }
 
 function setManualMode(m){STATE.useManualPrice=m;pushState();render();}
